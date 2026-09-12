@@ -3,167 +3,141 @@ const {
   applySecurityHeaders,
   requireMethod,
   sendError,
-  normalizeText,
   isNonEmptyString,
-  isUuid,
   isReasonableBodySize,
-  logServerError
+  isUuid,
+  timingSafeEqualStrings
 } = require("../../lib/security");
 
 function parseBody(req) {
-  return new Promise((resolve, reject) => {
-    let raw = "";
-
-    req.on("data", (chunk) => {
-      raw += chunk;
-
-      if (Buffer.byteLength(raw, "utf8") > 20 * 1024) {
-        reject(new Error("Request body too large."));
-        req.destroy();
-      }
-    });
-
-    req.on("end", () => {
-      if (!raw) {
-        resolve({});
-        return;
-      }
-
-      try {
-        resolve(JSON.parse(raw));
-      } catch {
-        reject(new Error("Invalid JSON."));
-      }
-    });
-
-    req.on("error", reject);
-  });
-}
-
-function isAdminRequest(req) {
-  const configuredKey = process.env.ADMIN_API_KEY;
-  const suppliedKey = req.headers["x-admin-api-key"];
-
-  if (!configuredKey || typeof suppliedKey !== "string") {
-    return false;
+  if (req.body && typeof req.body === "object") {
+    return req.body;
   }
 
-  return suppliedKey === configuredKey;
+  if (typeof req.body === "string") {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
 }
 
 module.exports = async function handler(req, res) {
   applySecurityHeaders(res);
 
-  if (!requireMethod(req, res, "POST")) {
-    return;
+  if (!requireMethod(req, res, "POST")) return;
+
+  const configuredAdminKey = process.env.ADMIN_API_KEY || "";
+  const suppliedAdminKey = req.headers["x-admin-api-key"] || "";
+
+  if (
+    !configuredAdminKey ||
+    !timingSafeEqualStrings(suppliedAdminKey, configuredAdminKey)
+  ) {
+    return sendError(res, 401, "Unauthorized.");
   }
 
-  if (!isAdminRequest(req)) {
-    return sendError(res, 403, "Forbidden.");
+  if (!isReasonableBodySize(req.body, 20000)) {
+    return sendError(res, 413, "Request body is too large.");
   }
 
-  if (!isReasonableBodySize(req, 20 * 1024)) {
-    return sendError(res, 413, "Request body too large.");
+  const body = parseBody(req);
+
+  if (!body) {
+    return sendError(res, 400, "Invalid JSON body.");
   }
+
+  const packageId =
+    typeof body.package_id === "string"
+      ? body.package_id.trim()
+      : "";
+
+  const packageName =
+    typeof body.package_name === "string"
+      ? body.package_name.trim()
+      : "";
+
+  const priceInPesewas = Number(body.price_in_pesewas);
+
+  if (!isNonEmptyString(packageId) || !isUuid(packageId)) {
+    return sendError(res, 400, "A valid package_id is required.");
+  }
+
+  if (!isNonEmptyString(packageName)) {
+    return sendError(res, 400, "Package name is required.");
+  }
+
+  if (
+    !Number.isInteger(priceInPesewas) ||
+    priceInPesewas <= 0
+  ) {
+    return sendError(
+      res,
+      400,
+      "price_in_pesewas must be a positive integer."
+    );
+  }
+
+  const supabase = createSupabase();
 
   try {
-    const body = await parseBody(req);
-
-    const packageId = normalizeText(body.package_id);
-    const packageName = normalizeText(body.package_name);
-
-    const rawPrice = body.price_in_pesewas;
-    const priceInPesewas = Number(rawPrice);
-
-    if (!isNonEmptyString(packageId) || !isUuid(packageId)) {
-      return sendError(res, 400, "A valid package_id is required.");
-    }
-
-    if (!isNonEmptyString(packageName)) {
-      return sendError(res, 400, "package_name is required.");
-    }
-
-    if (
-      !Number.isSafeInteger(priceInPesewas) ||
-      priceInPesewas <= 0
-    ) {
-      return sendError(
-        res,
-        400,
-        "price_in_pesewas must be a positive whole number."
-      );
-    }
-
-    const supabase = createSupabase();
-
-    const { data: existingPackage, error: findError } = await supabase
-      .from("packages")
-      .select(`
-        id,
-        agent_id,
-        package_name,
-        price_in_pesewas,
-        created_at
-      `)
-      .eq("id", packageId)
-      .maybeSingle();
+    const { data: existingPackage, error: findError } =
+      await supabase
+        .from("packages")
+        .select(
+          "id, agent_id, package_name, price_in_pesewas, created_at"
+        )
+        .eq("id", packageId)
+        .maybeSingle();
 
     if (findError) {
-      logServerError("admin/update-package find", findError);
-      return sendError(res, 500, "Unable to find package.");
+      throw findError;
     }
 
     if (!existingPackage) {
       return sendError(res, 404, "Package not found.");
     }
 
-    const { data: duplicatePackage, error: duplicateError } = await supabase
-      .from("packages")
-      .select("id")
-      .eq("agent_id", existingPackage.agent_id)
-      .eq("package_name", packageName)
-      .eq("price_in_pesewas", priceInPesewas)
-      .neq("id", packageId)
-      .maybeSingle();
+    const { data: duplicatePackage, error: duplicateError } =
+      await supabase
+        .from("packages")
+        .select("id")
+        .eq("agent_id", existingPackage.agent_id)
+        .eq("package_name", packageName)
+        .eq("price_in_pesewas", priceInPesewas)
+        .neq("id", packageId)
+        .maybeSingle();
 
     if (duplicateError) {
-      logServerError(
-        "admin/update-package duplicate",
-        duplicateError
-      );
-      return sendError(res, 500, "Unable to validate package.");
+      throw duplicateError;
     }
 
     if (duplicatePackage) {
       return sendError(
         res,
         409,
-        "An identical package already exists for this agent."
+        "This package already exists for the agent."
       );
     }
 
-    const { data: updatedPackage, error: updateError } = await supabase
-      .from("packages")
-      .update({
-        package_name: packageName,
-        price_in_pesewas: priceInPesewas
-      })
-      .eq("id", packageId)
-      .select(`
-        id,
-        agent_id,
-        package_name,
-        price_in_pesewas,
-        created_at
-      `)
-      .single();
+    const { data: updatedPackage, error: updateError } =
+      await supabase
+        .from("packages")
+        .update({
+          package_name: packageName,
+          price_in_pesewas: priceInPesewas
+        })
+        .eq("id", packageId)
+        .select(
+          "id, agent_id, package_name, price_in_pesewas, created_at"
+        )
+        .single();
 
     if (updateError) {
-      logServerError(
-        "admin/update-package update",
-        updateError
-      );
-      return sendError(res, 500, "Unable to update package.");
+      throw updateError;
     }
 
     return res.status(200).json({
@@ -172,7 +146,15 @@ module.exports = async function handler(req, res) {
       package: updatedPackage
     });
   } catch (error) {
-    logServerError("admin/update-package", error);
-    return sendError(res, 500, "Unable to update package.");
+    console.error(
+      "[EazyFi] Update-package error:",
+      error?.message || error
+    );
+
+    return sendError(
+      res,
+      500,
+      "Internal server error."
+    );
   }
 };
