@@ -1,375 +1,189 @@
-const {
-  createSupabase
-} = require("../../lib/supabase");
-
+const { createSupabase } = require("../../lib/supabase");
 const {
   applySecurityHeaders,
   requireMethod,
   sendError,
-  normalizeText,
-  normalizePhone,
   isNonEmptyString,
   isReasonableBodySize,
-  logServerError
+  timingSafeEqualStrings
 } = require("../../lib/security");
 
-function parseBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = "";
-
-    req.on("data", chunk => {
-      body += chunk;
-
-      if (
-        Buffer.byteLength(body, "utf8") >
-        20 * 1024
-      ) {
-        reject(
-          new Error("Request body too large.")
-        );
-
-        req.destroy();
-      }
-    });
-
-    req.on("end", () => {
-      try {
-        resolve(
-          body
-            ? JSON.parse(body)
-            : {}
-        );
-      } catch {
-        reject(
-          new Error("Invalid JSON body.")
-        );
-      }
-    });
-
-    req.on("error", reject);
-  });
+function isValidEmail(email) {
+  return (
+    typeof email === "string" &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  );
 }
 
-function isAdminRequest(req) {
-  /*
-   * The admin endpoint requires a private
-   * server-to-server authorization value.
-   *
-   * ADMIN_API_KEY must be stored only in Vercel
-   * Environment Variables.
-   */
-  const configuredKey =
-    process.env.ADMIN_API_KEY;
-
-  const suppliedKey =
-    req.headers["x-admin-api-key"];
-
-  if (
-    !configuredKey ||
-    typeof suppliedKey !== "string"
-  ) {
-    return false;
+function parseBody(req) {
+  if (req.body && typeof req.body === "object") {
+    return req.body;
   }
 
-  return suppliedKey === configuredKey;
+  if (typeof req.body === "string") {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
 }
 
 module.exports = async function handler(req, res) {
   applySecurityHeaders(res);
 
-  if (!requireMethod(req, res, "POST")) {
-    return;
-  }
+  if (!requireMethod(req, res, "POST")) return;
 
-  if (!isAdminRequest(req)) {
-    return sendError(
-      res,
-      403,
-      "Admin authorization required."
-    );
-  }
+  const configuredAdminKey = process.env.ADMIN_API_KEY || "";
+  const suppliedAdminKey = req.headers["x-admin-api-key"] || "";
 
   if (
-    !isReasonableBodySize(
-      req,
-      20 * 1024
-    )
+    !configuredAdminKey ||
+    !timingSafeEqualStrings(suppliedAdminKey, configuredAdminKey)
   ) {
+    return sendError(res, 401, "Unauthorized.");
+  }
+
+  if (!isReasonableBodySize(req.body, 20000)) {
+    return sendError(res, 413, "Request body is too large.");
+  }
+
+  const body = parseBody(req);
+
+  if (!body) {
+    return sendError(res, 400, "Invalid JSON body.");
+  }
+
+  const email = typeof body.email === "string"
+    ? body.email.trim().toLowerCase()
+    : "";
+
+  const password = typeof body.password === "string"
+    ? body.password
+    : "";
+
+  const agentId = typeof body.agent_id === "string"
+    ? body.agent_id.trim()
+    : "";
+
+  const agentName = typeof body.agent_name === "string"
+    ? body.agent_name.trim()
+    : "";
+
+  const phone = typeof body.phone === "string"
+    ? body.phone.trim()
+    : null;
+
+  const terminalId = typeof body.terminal_id === "string"
+    ? body.terminal_id.trim()
+    : null;
+
+  if (!isValidEmail(email)) {
+    return sendError(res, 400, "A valid email address is required.");
+  }
+
+  if (password.length < 8) {
     return sendError(
       res,
-      413,
-      "Request body is too large."
+      400,
+      "Password must be at least 8 characters."
     );
   }
 
+  if (!isNonEmptyString(agentId)) {
+    return sendError(res, 400, "Agent ID is required.");
+  }
+
+  if (!isNonEmptyString(agentName)) {
+    return sendError(res, 400, "Agent name is required.");
+  }
+
+  const supabase = createSupabase();
+
   try {
-    const body =
-      await parseBody(req);
-
-    const email =
-      normalizeText(body.email);
-
-    const password =
-      typeof body.password === "string"
-        ? body.password
-        : "";
-
-    const agentId =
-      normalizeText(body.agent_id);
-
-    const agentName =
-      normalizeText(body.agent_name);
-
-    const phone =
-      normalizePhone(body.phone);
-
-    const terminalId =
-      normalizeText(body.terminal_id);
-
-    if (
-      !isNonEmptyString(email) ||
-      !email.includes("@")
-    ) {
-      return sendError(
-        res,
-        400,
-        "A valid email is required."
-      );
-    }
-
-    if (
-      password.length < 8
-    ) {
-      return sendError(
-        res,
-        400,
-        "Password must contain at least 8 characters."
-      );
-    }
-
-    if (
-      !isNonEmptyString(agentId)
-    ) {
-      return sendError(
-        res,
-        400,
-        "Agent ID is required."
-      );
-    }
-
-    if (
-      !isNonEmptyString(agentName)
-    ) {
-      return sendError(
-        res,
-        400,
-        "Agent name is required."
-      );
-    }
-
-    if (
-      agentId.length > 100
-    ) {
-      return sendError(
-        res,
-        400,
-        "Agent ID is too long."
-      );
-    }
-
-    if (
-      agentName.length > 150
-    ) {
-      return sendError(
-        res,
-        400,
-        "Agent name is too long."
-      );
-    }
-
-    const supabase =
-      createSupabase();
-
-    /*
-     * Check Agent ID before creating the
-     * Supabase Auth user.
-     */
-    const {
-      data: existingAgent,
-      error: existingAgentError
-    } = await supabase
-      .from("agents")
-      .select("id")
-      .eq(
-        "agent_id",
-        agentId
-      )
-      .maybeSingle();
+    const { data: existingAgent, error: existingAgentError } =
+      await supabase
+        .from("agents")
+        .select("id")
+        .eq("agent_id", agentId)
+        .maybeSingle();
 
     if (existingAgentError) {
-      logServerError(
-        "admin-create-agent-check",
-        existingAgentError
-      );
-
-      return sendError(
-        res,
-        500,
-        "Unable to check Agent ID."
-      );
+      throw existingAgentError;
     }
 
     if (existingAgent) {
-      return sendError(
-        res,
-        409,
-        "That Agent ID already exists."
-      );
+      return sendError(res, 409, "Agent ID already exists.");
     }
 
-    /*
-     * Create the authentication account.
-     */
-    const {
-      data: authData,
-      error: authError
-    } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true
-    });
+    const { data: authData, error: authError } =
+      await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true
+      });
 
-    if (authError) {
-      logServerError(
-        "admin-create-auth-user",
-        authError
+    if (authError || !authData?.user) {
+      console.error(
+        "[EazyFi] Failed to create authentication user:",
+        authError?.message || "Unknown error"
       );
 
       return sendError(
         res,
         400,
-        "Unable to create agent login."
+        "Unable to create agent account."
       );
     }
 
-    if (!authData?.user?.id) {
-      return sendError(
-        res,
-        500,
-        "Agent login was created without a user ID."
-      );
-    }
+    const userId = authData.user.id;
 
-    /*
-     * Create the matching application-level
-     * agent record.
-     */
-    const {
-      data: agent,
-      error: agentError
-    } = await supabase
+    const { data: agent, error: agentError } = await supabase
       .from("agents")
       .insert({
-        user_id:
-          authData.user.id,
-
-        agent_id:
-          agentId,
-
-        agent_name:
-          agentName,
-
-        phone:
-          phone || null,
-
-        terminal_id:
-          terminalId || null
+        user_id: userId,
+        agent_id: agentId,
+        agent_name: agentName,
+        phone: phone || null,
+        terminal_id: terminalId || null
       })
       .select(
-        "id, user_id, agent_id, agent_name, phone, terminal_id, created_at"
+        "id, user_id, agent_id, agent_name, phone, terminal_id, wallet_balance, created_at"
       )
       .single();
 
     if (agentError) {
-      logServerError(
-        "admin-create-agent-record",
-        agentError
+      console.error(
+        "[EazyFi] Failed to create agent record:",
+        agentError.message
       );
 
-      /*
-       * If the application record fails,
-       * remove the Auth user so we don't leave
-       * an orphaned login behind.
-       */
-      try {
-        await supabase.auth.admin.deleteUser(
-          authData.user.id
-        );
-      } catch (cleanupError) {
-        logServerError(
-          "admin-create-agent-cleanup",
-          cleanupError
-        );
-      }
+      await supabase.auth.admin.deleteUser(userId);
 
       return sendError(
         res,
         500,
-        "Unable to create agent profile."
+        "Unable to create agent record."
       );
     }
 
     return res.status(201).json({
       success: true,
-
-      message:
-        "Agent created successfully.",
-
-      agent: {
-        id: agent.id,
-        agent_id:
-          agent.agent_id,
-        agent_name:
-          agent.agent_name,
-        phone:
-          agent.phone,
-        terminal_id:
-          agent.terminal_id
-      }
+      message: "Agent created successfully.",
+      agent
     });
-
   } catch (error) {
-    logServerError(
-      "admin-create-agent",
-      error
+    console.error(
+      "[EazyFi] Create-agent error:",
+      error?.message || error
     );
-
-    if (
-      error.message ===
-      "Invalid JSON body."
-    ) {
-      return sendError(
-        res,
-        400,
-        "Invalid JSON request."
-      );
-    }
-
-    if (
-      error.message ===
-      "Request body too large."
-    ) {
-      return sendError(
-        res,
-        413,
-        "Request body is too large."
-      );
-    }
 
     return sendError(
       res,
       500,
-      "Unable to create agent."
+      "Internal server error."
     );
   }
 };
