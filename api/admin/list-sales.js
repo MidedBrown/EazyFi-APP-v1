@@ -3,45 +3,44 @@ const {
   applySecurityHeaders,
   requireMethod,
   sendError,
-  logServerError
+  timingSafeEqualStrings
 } = require("../../lib/security");
 
-function isAdminRequest(req) {
-  const configuredKey = process.env.ADMIN_API_KEY;
-  const suppliedKey = req.headers["x-admin-api-key"];
-
-  if (!configuredKey || typeof suppliedKey !== "string") {
-    return false;
-  }
-
-  return suppliedKey === configuredKey;
-}
-
 function getLimit(req) {
-  const requested = Number(req.query?.limit);
+  const rawLimit = req.query?.limit;
 
-  if (!Number.isInteger(requested) || requested <= 0) {
+  if (rawLimit === undefined) {
     return 50;
   }
 
-  return Math.min(requested, 100);
+  const limit = Number(rawLimit);
+
+  if (!Number.isInteger(limit) || limit < 1) {
+    return 50;
+  }
+
+  return Math.min(limit, 100);
 }
 
 module.exports = async function handler(req, res) {
   applySecurityHeaders(res);
 
-  if (!requireMethod(req, res, "GET")) {
-    return;
+  if (!requireMethod(req, res, "GET")) return;
+
+  const configuredAdminKey = process.env.ADMIN_API_KEY || "";
+  const suppliedAdminKey = req.headers["x-admin-api-key"] || "";
+
+  if (
+    !configuredAdminKey ||
+    !timingSafeEqualStrings(suppliedAdminKey, configuredAdminKey)
+  ) {
+    return sendError(res, 401, "Unauthorized.");
   }
 
-  if (!isAdminRequest(req)) {
-    return sendError(res, 403, "Forbidden.");
-  }
+  const limit = getLimit(req);
+  const supabase = createSupabase();
 
   try {
-    const supabase = createSupabase();
-    const limit = getLimit(req);
-
     const { data: sales, error } = await supabase
       .from("transactions")
       .select(`
@@ -68,34 +67,42 @@ module.exports = async function handler(req, res) {
       .limit(limit);
 
     if (error) {
-      logServerError("admin/list-sales", error);
-      return sendError(res, 500, "Unable to load sales.");
+      throw error;
     }
 
-    const formattedSales = sales.map((item) => ({
-      id: item.id,
-      paystack_ref: item.paystack_ref,
-      agent_id: item.agent_id,
-      agent_name: item.agents?.agent_name || null,
-      package_id: item.package_id,
-      package_name: item.packages?.package_name || null,
+    const formattedSales = (sales || []).map((sale) => ({
+      id: sale.id,
+      paystack_ref: sale.paystack_ref,
+      agent_id: sale.agent_id,
+      agent_name: sale.agents?.agent_name || null,
+      package_id: sale.package_id,
+      package_name: sale.packages?.package_name || null,
       package_price_in_pesewas:
-        item.packages?.price_in_pesewas || null,
-      customer_phone: item.customer_phone,
-      amount_paid: item.amount_paid,
-      voucher_code: item.voucher_code,
-      sms_status: item.sms_status,
-      status: item.status,
-      created_at: item.created_at
+        sale.packages?.price_in_pesewas || null,
+      customer_phone: sale.customer_phone,
+      amount_paid: sale.amount_paid,
+      voucher_code: sale.voucher_code,
+      sms_status: sale.sms_status,
+      status: sale.status,
+      created_at: sale.created_at
     }));
 
     return res.status(200).json({
       success: true,
+      sales: formattedSales,
       count: formattedSales.length,
-      sales: formattedSales
+      limit
     });
   } catch (error) {
-    logServerError("admin/list-sales", error);
-    return sendError(res, 500, "Unable to load sales.");
+    console.error(
+      "[EazyFi] List-sales error:",
+      error?.message || error
+    );
+
+    return sendError(
+      res,
+      500,
+      "Internal server error."
+    );
   }
 };
