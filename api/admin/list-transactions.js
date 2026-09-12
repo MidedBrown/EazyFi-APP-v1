@@ -3,45 +3,44 @@ const {
   applySecurityHeaders,
   requireMethod,
   sendError,
-  logServerError
+  timingSafeEqualStrings
 } = require("../../lib/security");
 
-function isAdminRequest(req) {
-  const configuredKey = process.env.ADMIN_API_KEY;
-  const suppliedKey = req.headers["x-admin-api-key"];
-
-  if (!configuredKey || typeof suppliedKey !== "string") {
-    return false;
-  }
-
-  return suppliedKey === configuredKey;
-}
-
 function getLimit(req) {
-  const requested = Number(req.query?.limit);
+  const rawLimit = req.query?.limit;
 
-  if (!Number.isInteger(requested) || requested <= 0) {
+  if (rawLimit === undefined) {
     return 50;
   }
 
-  return Math.min(requested, 100);
+  const limit = Number(rawLimit);
+
+  if (!Number.isInteger(limit) || limit < 1) {
+    return 50;
+  }
+
+  return Math.min(limit, 100);
 }
 
 module.exports = async function handler(req, res) {
   applySecurityHeaders(res);
 
-  if (!requireMethod(req, res, "GET")) {
-    return;
+  if (!requireMethod(req, res, "GET")) return;
+
+  const configuredAdminKey = process.env.ADMIN_API_KEY || "";
+  const suppliedAdminKey = req.headers["x-admin-api-key"] || "";
+
+  if (
+    !configuredAdminKey ||
+    !timingSafeEqualStrings(suppliedAdminKey, configuredAdminKey)
+  ) {
+    return sendError(res, 401, "Unauthorized.");
   }
 
-  if (!isAdminRequest(req)) {
-    return sendError(res, 403, "Forbidden.");
-  }
+  const limit = getLimit(req);
+  const supabase = createSupabase();
 
   try {
-    const supabase = createSupabase();
-    const limit = getLimit(req);
-
     const { data: transactions, error } = await supabase
       .from("transactions")
       .select(`
@@ -67,34 +66,44 @@ module.exports = async function handler(req, res) {
       .limit(limit);
 
     if (error) {
-      logServerError("admin/list-transactions", error);
-      return sendError(res, 500, "Unable to load transactions.");
+      throw error;
     }
 
-    const formattedTransactions = transactions.map((item) => ({
-      id: item.id,
-      paystack_ref: item.paystack_ref,
-      agent_id: item.agent_id,
-      agent_name: item.agents?.agent_name || null,
-      package_id: item.package_id,
-      package_name: item.packages?.package_name || null,
-      package_price_in_pesewas:
-        item.packages?.price_in_pesewas || null,
-      customer_phone: item.customer_phone,
-      amount_paid: item.amount_paid,
-      voucher_code: item.voucher_code,
-      sms_status: item.sms_status,
-      status: item.status,
-      created_at: item.created_at
-    }));
+    const formattedTransactions = (transactions || []).map(
+      (transaction) => ({
+        id: transaction.id,
+        paystack_ref: transaction.paystack_ref,
+        agent_id: transaction.agent_id,
+        agent_name: transaction.agents?.agent_name || null,
+        package_id: transaction.package_id,
+        package_name: transaction.packages?.package_name || null,
+        package_price_in_pesewas:
+          transaction.packages?.price_in_pesewas || null,
+        customer_phone: transaction.customer_phone,
+        amount_paid: transaction.amount_paid,
+        voucher_code: transaction.voucher_code,
+        sms_status: transaction.sms_status,
+        status: transaction.status,
+        created_at: transaction.created_at
+      })
+    );
 
     return res.status(200).json({
       success: true,
+      transactions: formattedTransactions,
       count: formattedTransactions.length,
-      transactions: formattedTransactions
+      limit
     });
   } catch (error) {
-    logServerError("admin/list-transactions", error);
-    return sendError(res, 500, "Unable to load transactions.");
+    console.error(
+      "[EazyFi] List-transactions error:",
+      error?.message || error
+    );
+
+    return sendError(
+      res,
+      500,
+      "Internal server error."
+    );
   }
 };
