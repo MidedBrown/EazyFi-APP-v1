@@ -20,21 +20,35 @@ module.exports = async (req, res) => {
 
   try {
     const token = getAdminSessionToken(req);
-    const session = getAdminSession(token);
+
+    if (!token) {
+      return sendError(res, 401, "Admin session required.");
+    }
+
+    const session = await getAdminSession(token);
 
     if (!session) {
-      return sendError(res, 401, "Admin session required.");
+      return sendError(res, 401, "Admin session expired.");
     }
 
     return res.status(200).json({
       success: true,
       admin: true,
       session: {
+        expires_at: session.expires_at,
         expires_in: getAdminSessionRemainingSeconds(session)
       }
     });
   } catch (error) {
-    logServerError("GET /api/admin/auth/me failed", error);
-    return sendError(res, 500, "Unable to verify admin session.");
+    logServerError(
+      "GET /api/admin/auth/me failed",
+      error
+    );
+
+    return sendError(
+      res,
+      500,
+      "Unable to verify admin session."
+    );
   }
 };
