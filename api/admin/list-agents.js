@@ -1,33 +1,35 @@
 const { createSupabase } = require("../../lib/supabase");
 const {
-  applySecurityHeaders,
-  requireMethod,
+  requireAdminAuthentication
+} = require("../../lib/admin-auth");
+
+const {
   sendError,
-  timingSafeEqualStrings
+  requireMethod,
+  applySecurityHeaders,
+  logServerError
 } = require("../../lib/security");
 
-module.exports = async function handler(req, res) {
+module.exports = async (req, res) => {
   applySecurityHeaders(res);
 
-  if (!requireMethod(req, res, "GET")) return;
-
-  const configuredAdminKey = process.env.ADMIN_API_KEY || "";
-  const suppliedAdminKey = req.headers["x-admin-api-key"] || "";
-
-  if (
-    !configuredAdminKey ||
-    !timingSafeEqualStrings(suppliedAdminKey, configuredAdminKey)
-  ) {
-    return sendError(res, 401, "Unauthorized.");
+  if (!requireMethod(req, res, "GET")) {
+    return;
   }
 
-  const supabase = createSupabase();
+  const admin = await requireAdminAuthentication(req, res);
+
+  if (!admin) {
+    return;
+  }
 
   try {
-    const { data: agents, error } = await supabase
+    const supabase = createSupabase();
+
+    const { data, error } = await supabase
       .from("agents")
       .select(
-        "id, user_id, agent_id, agent_name, phone, terminal_id, wallet_balance, login_failed_attempts, account_locked, account_locked_at, account_locked_reason, created_at"
+        "id, agent_id, agent_name, phone, terminal_id, wallet_balance, login_failed_attempts, account_locked, account_locked_at, account_locked_reason, created_at"
       )
       .order("created_at", { ascending: false });
 
@@ -37,18 +39,19 @@ module.exports = async function handler(req, res) {
 
     return res.status(200).json({
       success: true,
-      agents: agents || []
+      agents: data || [],
+      count: (data || []).length
     });
   } catch (error) {
-    console.error(
-      "[EazyFi] List-agents error:",
-      error?.message || error
+    logServerError(
+      "GET /api/admin/list-agents failed",
+      error
     );
 
     return sendError(
       res,
       500,
-      "Internal server error."
+      "Unable to load agents."
     );
   }
 };
