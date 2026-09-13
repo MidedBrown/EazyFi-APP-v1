@@ -22,7 +22,7 @@ module.exports = async (req, res) => {
     const token = getAdminSessionToken(req);
 
     if (token) {
-      destroyAdminSession(token);
+      await destroyAdminSession(token);
     }
 
     clearAdminSessionCookie(res);
@@ -32,7 +32,15 @@ module.exports = async (req, res) => {
       message: "Admin logout successful."
     });
   } catch (error) {
-    logServerError("POST /api/admin/auth/logout failed", error);
-    return sendError(res, 500, "Unable to complete admin logout.");
+    logServerError(
+      "POST /api/admin/auth/logout failed",
+      error
+    );
+
+    return sendError(
+      res,
+      500,
+      "Unable to complete admin logout."
+    );
   }
 };
