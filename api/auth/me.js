@@ -1,56 +1,42 @@
+const { requireAuthentication } = require("../../lib/authenticate");
 const {
-  requireAuthentication
-} = require("../../lib/authenticate");
-
-const {
+  sendError,
+  requireMethod,
   applySecurityHeaders,
-  requireMethod
+  logServerError
 } = require("../../lib/security");
 
+module.exports = requireAuthentication(async (req, res, auth) => {
+  applySecurityHeaders(res);
 
-module.exports = requireAuthentication(
-  async function handler(req, res) {
+  if (!requireMethod(req, res, "GET")) {
+    return;
+  }
 
-    applySecurityHeaders(res);
-
-    if (!requireMethod(req, res, "GET")) {
-      return;
-    }
-
-    /*
-     * req.eazyfi was created by authenticate.js.
-     *
-     * The agent information here comes from our
-     * trusted backend lookup, NOT from the browser.
-     */
-    const auth = req.eazyfi;
-
+  try {
     return res.status(200).json({
       success: true,
-
-      authenticated: true,
-
-      agent: {
-        agent_id:
-          auth.agent.agent_id,
-
-        agent_name:
-          auth.agent.agent_name,
-
-        phone:
-          auth.agent.phone
+      user: {
+        id: auth.user.id,
+        email: auth.user.email || null
       },
-
+      agent: {
+        id: auth.agent.id,
+        agent_id: auth.agent.agent_id,
+        agent_name: auth.agent.agent_name,
+        phone: auth.agent.phone,
+        terminal_id: auth.agent.terminal_id,
+        wallet_balance: auth.agent.wallet_balance,
+        account_locked: auth.agent.account_locked
+      },
       session: {
-        startedAt:
-          auth.session.startedAt,
-
-        expiresAt:
-          auth.session.expiresAt,
-
-        remainingMs:
-          auth.session.remainingMs
+        started_at: auth.session.startedAt,
+        expires_at: auth.session.expiresAt,
+        remaining_seconds: auth.session.remainingSeconds
       }
     });
+  } catch (error) {
+    logServerError("GET /api/auth/me failed", error);
+    return sendError(res, 500, "Unable to load account information.");
   }
-);
+});
