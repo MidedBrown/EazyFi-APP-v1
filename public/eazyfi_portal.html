@@ -1,0 +1,2634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+  <meta name="theme-color" content="#0b63ce">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="EazyFi">
+
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/assets/eazyfi-icon-192.png">
+  <link rel="apple-touch-icon" href="/assets/eazyfi-icon-192.png">
+
+  <title>EazyFi Agent Portal</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            efblue: "#0b63ce",
+            eforange: "#f97316",
+            efnavy: "#071a35"
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+    }
+
+    body {
+      background: #f5f8fc;
+      color: #10213d;
+    }
+
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+    }
+
+    .gradient-brand {
+      background:
+        linear-gradient(
+          135deg,
+          #0868d7 0%,
+          #155bd7 62%,
+          #f97316 100%
+        );
+    }
+
+    .gradient-soft {
+      background:
+        linear-gradient(
+          135deg,
+          #eef6ff 0%,
+          #fff7ef 100%
+        );
+    }
+
+    .shadow-brand {
+      box-shadow:
+        0 18px 45px rgba(11, 99, 206, 0.18);
+    }
+
+    .toast {
+      position: fixed;
+      z-index: 10000;
+      top: max(14px, env(safe-area-inset-top));
+      right: 16px;
+      left: 16px;
+      width: auto;
+      max-width: 440px;
+      margin-left: auto;
+      border-radius: 16px;
+      padding: 14px 16px;
+      color: white;
+      box-shadow:
+        0 16px 40px rgba(0, 0, 0, 0.18);
+      transform: translateY(-140%);
+      opacity: 0;
+      transition: 0.28s ease;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .toast.success {
+      background: #0b63ce;
+    }
+
+    .toast.error {
+      background: #dc2626;
+    }
+
+    .toast.warning {
+      background: #f97316;
+    }
+
+    @media (max-width: 480px) {
+      .toast {
+        left: 12px;
+        right: 12px;
+        max-width: none;
+        font-size: 14px;
+        line-height: 1.35;
+      }
+    }
+
+    .drawer {
+      position: fixed;
+      z-index: 9000;
+      inset: 0 auto 0 0;
+      width: min(310px, 86vw);
+      transform: translateX(-105%);
+      transition: 0.25s ease;
+      background: #fff;
+      box-shadow:
+        18px 0 45px rgba(0, 0, 0, 0.15);
+    }
+
+    .drawer.open {
+      transform: translateX(0);
+    }
+
+    .drawer-overlay {
+      position: fixed;
+      z-index: 8999;
+      inset: 0;
+      background: rgba(2, 16, 35, 0.45);
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.25s ease;
+    }
+
+    .drawer-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .tab {
+      display: none;
+    }
+
+    .tab.active {
+      display: block;
+    }
+
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,0.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .page-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 20000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(245,248,252,0.96);
+      backdrop-filter: blur(8px);
+    }
+
+    .session-pill {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .app-icon {
+      width: 86px;
+      height: 86px;
+      border-radius: 24px;
+      object-fit: cover;
+      box-shadow:
+        0 18px 35px rgba(11,99,206,0.24);
+    }
+
+    .brand-logo {
+      max-width: 210px;
+      max-height: 82px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+    }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 9500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(2,16,35,0.55);
+    }
+
+    .modal-card {
+      width: min(560px, 100%);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- TOAST -->
+  <div id="toast" class="toast">
+    <span id="toastText"></span>
+  </div>
+
+  <!-- PAGE LOADER -->
+  <div id="pageLoader" class="page-loader">
+    <div class="text-center">
+
+      <img
+        src="/assets/eazyfi-icon-192.png"
+        class="app-icon mx-auto mb-5"
+        alt="EazyFi"
+      >
+
+      <div
+        class="h-10 w-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mx-auto">
+      </div>
+
+      <p class="mt-4 text-slate-500">
+        Loading EazyFi…
+      </p>
+    </div>
+  </div>
+
+
+  <!-- ========================= -->
+  <!-- LOGIN VIEW -->
+  <!-- ========================= -->
+
+  <section
+    id="loginView"
+    class="hidden min-h-screen px-4 py-10 sm:py-16"
+  >
+
+    <div class="max-w-xl mx-auto">
+
+      <div class="text-center">
+
+        <!-- EXACT EAZYFI LOGO -->
+        <img
+          src="/assets/jwozpqtiltmwpzni5ehc.png"
+          class="brand-logo mx-auto"
+          alt="EazyFi"
+        >
+
+        <h1
+          class="mt-7 text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-950"
+        >
+          Welcome back
+        </h1>
+
+        <p class="mt-3 text-lg sm:text-xl text-slate-500">
+          Sign in to your EazyFi agent account.
+        </p>
+
+      </div>
+
+
+      <div
+        class="mt-10 bg-white rounded-[32px] p-7 sm:p-10 shadow-brand border border-slate-100"
+      >
+
+        <form id="loginForm" class="space-y-6">
+
+          <div>
+
+            <label class="block font-bold text-slate-700 mb-2">
+              Email
+            </label>
+
+            <input
+              id="email"
+              type="email"
+              autocomplete="username"
+              required
+              class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-base outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              placeholder="Enter your email"
+            >
+
+          </div>
+
+
+          <div>
+
+            <label class="block font-bold text-slate-700 mb-2">
+              Password
+            </label>
+
+            <input
+              id="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-base outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              placeholder="Enter your password"
+            >
+
+          </div>
+
+
+          <div
+            id="loginError"
+            class="hidden rounded-2xl bg-red-50 text-red-700 px-4 py-3"
+          ></div>
+
+
+          <button
+            id="loginBtn"
+            type="submit"
+            class="w-full gradient-brand text-white font-extrabold rounded-2xl py-4 shadow-brand flex items-center justify-center gap-3 disabled:opacity-60"
+          >
+
+            <span id="loginBtnText">
+              Sign In
+            </span>
+
+            <span
+              id="loginSpinner"
+              class="spinner hidden"
+            ></span>
+
+          </button>
+
+        </form>
+
+
+        <div
+          class="mt-6 rounded-2xl gradient-soft border border-orange-100 p-5 flex gap-4"
+        >
+
+          <div class="text-2xl">
+            🔒
+          </div>
+
+          <p class="text-orange-900/80 leading-7">
+            For your security, agent sessions automatically expire after
+            <strong>30 minutes</strong>.
+          </p>
+
+        </div>
+
+
+        <button
+          id="installLoginBtn"
+          class="hidden mt-5 w-full rounded-2xl border-2 border-blue-100 text-blue-700 font-bold py-3"
+        >
+          Install EazyFi App
+        </button>
+
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- ========================= -->
+  <!-- APP VIEW -->
+  <!-- ========================= -->
+
+  <section
+    id="appView"
+    class="hidden min-h-screen"
+  >
+
+    <!-- DRAWER OVERLAY -->
+    <div
+      id="drawerOverlay"
+      class="drawer-overlay"
+    ></div>
+
+
+    <!-- DRAWER -->
+    <aside
+      id="drawer"
+      class="drawer"
+    >
+
+      <div class="h-full flex flex-col">
+
+        <div class="gradient-brand text-white p-6">
+
+          <div class="flex items-center justify-between">
+
+            <div class="flex items-center gap-3">
+
+              <img
+                src="/assets/eazyfi-icon-192.png"
+                class="w-12 h-12 rounded-2xl"
+                alt="EazyFi"
+              >
+
+              <div>
+
+                <div class="font-extrabold text-lg">
+                  EazyFi
+                </div>
+
+                <div class="text-white/75 text-xs">
+                  Agent Portal
+                </div>
+
+              </div>
+
+            </div>
+
+
+            <button
+              id="closeDrawer"
+              class="text-2xl leading-none"
+            >
+              ×
+            </button>
+
+          </div>
+
+        </div>
+
+
+        <nav class="p-4 space-y-1 overflow-y-auto flex-1">
+
+          <button
+            data-tab="dashboard"
+            class="navBtn w-full text-left rounded-xl px-4 py-3 font-bold hover:bg-blue-50"
+          >
+            📊 Dashboard
+          </button>
+
+          <button
+            data-tab="vouchers"
+            class="navBtn w-full text-left rounded-xl px-4 py-3 font-bold hover:bg-blue-50"
+          >
+            🎟️ Active Vouchers
+          </button>
+
+          <button
+            data-tab="packages"
+            class="navBtn w-full text-left rounded-xl px-4 py-3 font-bold hover:bg-blue-50"
+          >
+            📦 Assigned Packages
+          </button>
+
+          <button
+            data-tab="sales"
+            class="navBtn w-full text-left rounded-xl px-4 py-3 font-bold hover:bg-blue-50"
+          >
+            💰 Sales Log
+          </button>
+
+          <button
+            data-tab="account"
+            class="navBtn w-full text-left rounded-xl px-4 py-3 font-bold hover:bg-blue-50"
+          >
+            👤 Account Details
+          </button>
+
+          <button
+            id="refreshBtn"
+            class="w-full text-left rounded-xl px-4 py-3 font-bold hover:bg-blue-50"
+          >
+            🔄 Refresh Data
+          </button>
+
+          <button
+            id="installBtn"
+            class="hidden w-full text-left rounded-xl px-4 py-3 font-bold hover:bg-orange-50 text-orange-700"
+          >
+            📲 Install EazyFi App
+          </button>
+
+        </nav>
+
+
+        <div class="p-4 border-t border-slate-100">
+
+          <div
+            class="rounded-2xl bg-slate-50 p-4 mb-3"
+          >
+
+            <div class="text-xs text-slate-500">
+              Session remaining
+            </div>
+
+            <div
+              id="drawerSession"
+              class="session-pill text-2xl font-extrabold text-blue-700 mt-1"
+            >
+              30:00
+            </div>
+
+          </div>
+
+
+          <button
+            id="logoutBtn"
+            class="w-full rounded-xl bg-red-50 text-red-700 font-bold px-4 py-3"
+          >
+            Log out
+          </button>
+
+        </div>
+
+      </div>
+
+    </aside>
+
+
+    <!-- HEADER -->
+    <header
+      class="sticky top-0 z-[8000] bg-white/95 backdrop-blur border-b border-slate-100"
+    >
+
+      <div
+        class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3"
+      >
+
+        <button
+          id="menuBtn"
+          class="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 text-xl font-bold"
+        >
+          ☰
+        </button>
+
+
+        <img
+          src="/assets/eazyfi-icon-192.png"
+          class="w-11 h-11 rounded-xl"
+          alt="EazyFi"
+        >
+
+
+        <div class="min-w-0 flex-1">
+
+          <div
+            class="font-extrabold text-slate-950 truncate"
+          >
+            EazyFi Agent Portal
+          </div>
+
+          <div
+            id="agentNameHeader"
+            class="text-xs text-slate-500 truncate"
+          >
+            Agent
+          </div>
+
+        </div>
+
+
+        <div
+          class="hidden sm:flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-2"
+        >
+
+          <span class="text-xs text-slate-500">
+            Session
+          </span>
+
+          <span
+            id="headerSession"
+            class="session-pill font-extrabold text-blue-700"
+          >
+            30:00
+          </span>
+
+        </div>
+
+
+        <button
+          id="mobileLogout"
+          class="sm:hidden text-red-600 font-bold text-sm"
+        >
+          Exit
+        </button>
+
+      </div>
+
+    </header>
+
+
+    <!-- MAIN -->
+    <main
+      class="max-w-7xl mx-auto px-4 sm:px-6 py-6"
+    >
+
+
+      <!-- ========================= -->
+      <!-- DASHBOARD -->
+      <!-- ========================= -->
+
+      <div
+        id="tab-dashboard"
+        class="tab active"
+      >
+
+        <div
+          class="gradient-brand rounded-3xl p-6 sm:p-8 text-white shadow-brand"
+        >
+
+          <div class="text-white/75 text-sm font-bold">
+            Welcome back
+          </div>
+
+          <h2
+            id="welcomeName"
+            class="text-2xl sm:text-3xl font-extrabold mt-1"
+          >
+            Agent
+          </h2>
+
+          <p class="mt-2 text-white/80">
+            Manage your voucher stock and monitor your sales.
+          </p>
+
+          <button
+            id="dashboardAddBtn"
+            class="mt-6 bg-white text-blue-700 font-extrabold rounded-2xl px-5 py-3 shadow-lg"
+          >
+            + Add Vouchers
+          </button>
+
+        </div>
+
+
+        <!-- STAT CARDS -->
+
+        <div
+          class="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6"
+        >
+
+          <div
+            class="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm"
+          >
+            <div class="text-sm text-slate-500">
+              Total Sales
+            </div>
+
+            <div
+              id="totalSales"
+              class="text-2xl font-extrabold text-blue-700 mt-2"
+            >
+              GH₵0.00
+            </div>
+          </div>
+
+
+          <div
+            class="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm"
+          >
+            <div class="text-sm text-slate-500">
+              Today's Sales
+            </div>
+
+            <div
+              id="todaySales"
+              class="text-2xl font-extrabold text-orange-600 mt-2"
+            >
+              GH₵0.00
+            </div>
+          </div>
+
+
+          <div
+            class="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm"
+          >
+            <div class="text-sm text-slate-500">
+              Transactions Today
+            </div>
+
+            <div
+              id="todayTransactions"
+              class="text-2xl font-extrabold text-slate-900 mt-2"
+            >
+              0
+            </div>
+          </div>
+
+
+          <div
+            class="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm"
+          >
+            <div class="text-sm text-slate-500">
+              Available Vouchers
+            </div>
+
+            <div
+              id="stockCount"
+              class="text-2xl font-extrabold text-green-600 mt-2"
+            >
+              0
+            </div>
+          </div>
+
+        </div>
+
+
+        <!-- DASHBOARD PACKAGES -->
+
+        <div class="mt-8">
+
+          <div class="flex items-center justify-between mb-4">
+
+            <h3 class="text-xl font-extrabold">
+              Assigned Packages
+            </h3>
+
+            <button
+              data-tab="packages"
+              class="navBtn text-blue-700 font-bold text-sm"
+            >
+              View all
+            </button>
+
+          </div>
+
+
+          <div
+            id="dashboardPackages"
+            class="grid md:grid-cols-3 gap-4"
+          ></div>
+
+        </div>
+
+      </div>
+
+
+      <!-- ========================= -->
+      <!-- VOUCHERS -->
+      <!-- ========================= -->
+
+      <div
+        id="tab-vouchers"
+        class="tab"
+      >
+
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+
+          <div>
+
+            <h2 class="text-2xl font-extrabold">
+              Active Vouchers
+            </h2>
+
+            <p class="text-slate-500 mt-1">
+              Your available voucher stock.
+            </p>
+
+          </div>
+
+
+          <button
+            id="voucherAddBtn"
+            class="gradient-brand text-white font-extrabold rounded-2xl px-5 py-3 shadow-brand"
+          >
+            + Add Vouchers
+          </button>
+
+        </div>
+
+
+        <div
+          id="vouchersList"
+          class="grid md:grid-cols-2 lg:grid-cols-3 gap-4"
+        ></div>
+
+      </div>
+
+
+      <!-- ========================= -->
+      <!-- PACKAGES -->
+      <!-- ========================= -->
+
+      <div
+        id="tab-packages"
+        class="tab"
+      >
+
+        <div class="mb-6">
+
+          <h2 class="text-2xl font-extrabold">
+            Assigned Packages
+          </h2>
+
+          <p class="text-slate-500 mt-1">
+            Packages assigned to your agent account.
+          </p>
+
+        </div>
+
+
+        <div
+          id="packagesList"
+          class="grid md:grid-cols-2 lg:grid-cols-3 gap-4"
+        ></div>
+
+      </div>
+
+
+      <!-- ========================= -->
+      <!-- SALES -->
+      <!-- ========================= -->
+
+      <div
+        id="tab-sales"
+        class="tab"
+      >
+
+        <div class="mb-6">
+
+          <h2 class="text-2xl font-extrabold">
+            Sales Log
+          </h2>
+
+          <p class="text-slate-500 mt-1">
+            Search your completed transactions.
+          </p>
+
+        </div>
+
+
+        <div
+          class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
+        >
+
+          <div class="p-4 border-b border-slate-100">
+
+            <input
+              id="salesSearch"
+              type="search"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              placeholder="Search by customer phone number..."
+            >
+
+          </div>
+
+
+          <div class="overflow-x-auto">
+
+            <table class="w-full text-sm">
+
+              <thead class="bg-slate-50">
+
+                <tr>
+
+                  <th class="text-left p-4 font-bold">
+                    Date
+                  </th>
+
+                  <th class="text-left p-4 font-bold">
+                    Package
+                  </th>
+
+                  <th class="text-left p-4 font-bold">
+                    Customer
+                  </th>
+
+                  <th class="text-left p-4 font-bold">
+                    Amount
+                  </th>
+
+                  <th class="text-left p-4 font-bold">
+                    Status
+                  </th>
+
+                </tr>
+
+              </thead>
+
+              <tbody id="salesBody"></tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <!-- ========================= -->
+      <!-- ACCOUNT -->
+      <!-- ========================= -->
+
+      <div
+        id="tab-account"
+        class="tab"
+      >
+
+        <div class="mb-6">
+
+          <h2 class="text-2xl font-extrabold">
+            Account Details
+          </h2>
+
+          <p class="text-slate-500 mt-1">
+            Your EazyFi agent information.
+          </p>
+
+        </div>
+
+
+        <div class="max-w-2xl">
+
+          <div
+            class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden"
+          >
+
+            <div class="gradient-brand p-6 text-white">
+
+              <div class="flex items-center gap-4">
+
+                <img
+                  src="/assets/eazyfi-icon-192.png"
+                  class="w-16 h-16 rounded-2xl"
+                  alt="EazyFi"
+                >
+
+                <div>
+
+                  <div class="text-white/75 text-sm">
+                    Agent Account
+                  </div>
+
+                  <div
+                    id="accountAgentName"
+                    class="text-2xl font-extrabold"
+                  >
+                    —
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+
+            <div class="p-6 space-y-5">
+
+              <div>
+
+                <div class="text-sm text-slate-500">
+                  Agent ID
+                </div>
+
+                <div
+                  id="accountAgentId"
+                  class="font-extrabold mt-1"
+                >
+                  —
+                </div>
+
+              </div>
+
+
+              <div>
+
+                <div class="text-sm text-slate-500">
+                  Agent Name
+                </div>
+
+                <div
+                  id="accountAgentName"
+                  class="font-extrabold mt-1"
+                >
+                  —
+                </div>
+
+              </div>
+
+
+              <div>
+
+                <div class="text-sm text-slate-500">
+                  Phone
+                </div>
+
+                <div
+                  id="accountPhone"
+                  class="font-extrabold mt-1"
+                >
+                  —
+                </div>
+
+              </div>
+
+
+              <div>
+
+                <div class="text-sm text-slate-500">
+                  Email
+                </div>
+
+                <div
+                  id="accountEmail"
+                  class="font-extrabold mt-1 break-all"
+                >
+                  —
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+
+  </section>
+
+
+  <!-- ========================= -->
+  <!-- ADD VOUCHER MODAL -->
+  <!-- ========================= -->
+
+  <div
+    id="voucherModal"
+    class="modal hidden"
+  >
+
+    <div
+      class="modal-card bg-white rounded-3xl shadow-2xl p-6 sm:p-8"
+    >
+
+      <div class="flex items-center justify-between mb-6">
+
+        <div>
+
+          <h2 class="text-2xl font-extrabold">
+            Add Vouchers
+          </h2>
+
+          <p class="text-slate-500 mt-1">
+            Add voucher codes to your stock.
+          </p>
+
+        </div>
+
+
+        <button
+          id="closeVoucherModal"
+          class="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 text-xl"
+        >
+          ×
+        </button>
+
+      </div>
+
+
+      <form
+        id="voucherForm"
+        class="space-y-5"
+      >
+
+        <div>
+
+          <label class="block font-bold text-slate-700 mb-2">
+            Package
+          </label>
+
+          <select
+            id="packageSelect"
+            required
+            class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+          >
+
+            <option value="">
+              Select package
+            </option>
+
+          </select>
+
+        </div>
+
+
+        <div>
+
+          <label class="block font-bold text-slate-700 mb-2">
+            Voucher Codes
+          </label>
+
+          <textarea
+            id="voucherCodes"
+            required
+            rows="8"
+            class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 font-mono"
+            placeholder="Enter one voucher code per line"
+          ></textarea>
+
+          <p class="text-xs text-slate-500 mt-2">
+            Enter one voucher code on each line.
+          </p>
+
+        </div>
+
+
+        <div
+          id="voucherResult"
+          class="hidden rounded-xl p-4"
+        ></div>
+
+
+        <button
+          id="voucherSubmitBtn"
+          type="submit"
+          class="w-full gradient-brand text-white font-extrabold rounded-2xl py-4 flex items-center justify-center gap-3 disabled:opacity-60"
+        >
+
+          <span id="voucherSubmitText">
+            Add Vouchers
+          </span>
+
+          <span
+            id="voucherSpinner"
+            class="spinner hidden"
+          ></span>
+
+        </button>
+
+      </form>
+
+    </div>
+
+  </div>
+
+
+<script>
+
+  /* ==========================================
+     BASIC HELPERS
+  ========================================== */
+
+  const $ = id => document.getElementById(id);
+
+  const SESSION_DURATION = 30 * 60 * 1000;
+  const WARNING_TIME = 5 * 60 * 1000;
+  const SESSION_KEY = "eazyfi_session_started_at";
+
+  let timerId = null;
+  let warningShown = false;
+
+  let currentUser = null;
+  let currentAgent = null;
+
+  let packages = [];
+  let sales = [];
+
+  let deferredInstallPrompt = null;
+
+
+  /* ==========================================
+     TOAST
+  ========================================== */
+
+  let toastTimer = null;
+
+  function toast(message, type = "success") {
+
+    const box = $("toast");
+    const text = $("toastText");
+
+    text.textContent = message;
+
+    box.className = "toast " + type + " show";
+
+    clearTimeout(toastTimer);
+
+    toastTimer = setTimeout(() => {
+      box.classList.remove("show");
+    }, 4000);
+  }
+
+
+  /* ==========================================
+     ESCAPE HTML
+  ========================================== */
+
+  function esc(value) {
+
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+
+  /* ==========================================
+     MONEY
+  ========================================== */
+
+  function money(value) {
+
+    const number = Number(value || 0);
+
+    return "GH₵" + (number / 100).toFixed(2);
+  }
+
+
+  /* ==========================================
+     API HELPER
+  ========================================== */
+
+  async function api(url, options = {}) {
+
+    const response = await fetch(url, {
+      credentials: "include",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      }
+    });
+
+    let data = {};
+
+    try {
+      data = await response.json();
+    } catch {
+      data = {};
+    }
+
+    if (!response.ok) {
+
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
+
+        throw new Error("Session expired");
+
+      }
+
+      throw new Error(
+        data.error ||
+        data.message ||
+        "Request failed."
+      );
+    }
+
+    return data;
+  }
+
+
+  /* ==========================================
+     VIEW CONTROL
+  ========================================== */
+
+  function showView(view) {
+
+    $("pageLoader").style.display = "none";
+
+    if (view === "login") {
+
+      $("loginView").classList.remove("hidden");
+      $("appView").classList.add("hidden");
+
+    } else {
+
+      $("loginView").classList.add("hidden");
+      $("appView").classList.remove("hidden");
+
+    }
+  }
+
+
+  /* ==========================================
+     LOGIN LOADING
+  ========================================== */
+
+  function setLoginLoading(loading) {
+
+    $("loginBtn").disabled = loading;
+
+    $("loginSpinner").classList.toggle(
+      "hidden",
+      !loading
+    );
+
+    $("loginBtnText").textContent =
+      loading ? "Signing in..." : "Sign In";
+  }
+
+
+  /* ==========================================
+     VOUCHER LOADING
+  ========================================== */
+
+  function setVoucherLoading(loading) {
+
+    $("voucherSubmitBtn").disabled = loading;
+
+    $("voucherSpinner").classList.toggle(
+      "hidden",
+      !loading
+    );
+
+    $("voucherSubmitText").textContent =
+      loading ? "Adding..." : "Add Vouchers";
+  }
+
+
+  /* ==========================================
+     DRAWER
+  ========================================== */
+
+  function openDrawer() {
+
+    $("drawer").classList.add("open");
+    $("drawerOverlay").classList.add("open");
+  }
+
+
+  function closeDrawer() {
+
+    $("drawer").classList.remove("open");
+    $("drawerOverlay").classList.remove("open");
+  }
+
+
+  /* ==========================================
+     TABS
+  ========================================== */
+
+  function switchTab(tab) {
+
+    document.querySelectorAll(".tab")
+      .forEach(el => {
+        el.classList.remove("active");
+      });
+
+    const target = $("tab-" + tab);
+
+    if (target) {
+      target.classList.add("active");
+    }
+
+    closeDrawer();
+
+    if (tab === "dashboard") {
+      renderPackages();
+    }
+
+    if (tab === "sales") {
+      renderSales();
+    }
+  }
+
+
+  /* ==========================================
+     SESSION TIMER
+  ========================================== */
+
+  function startSessionTimer(startedAt) {
+
+    clearInterval(timerId);
+
+    warningShown = false;
+
+    sessionStorage.setItem(
+      SESSION_KEY,
+      String(startedAt)
+    );
+
+
+    function tick() {
+
+      const storedStartedAt =
+        Number(
+          sessionStorage.getItem(SESSION_KEY) ||
+          startedAt
+        );
+
+      const elapsed =
+        Date.now() - storedStartedAt;
+
+      const remaining =
+        Math.max(
+          0,
+          SESSION_DURATION - elapsed
+        );
+
+
+      const minutes =
+        Math.floor(
+          remaining / 60000
+        );
+
+
+      const seconds =
+        Math.floor(
+          (remaining % 60000) / 1000
+        );
+
+
+      const text =
+        String(minutes).padStart(2, "0") +
+        ":" +
+        String(seconds).padStart(2, "0");
+
+
+      if ($("headerSession")) {
+        $("headerSession").textContent = text;
+      }
+
+
+      if ($("drawerSession")) {
+        $("drawerSession").textContent = text;
+      }
+
+
+      if (
+        remaining <= WARNING_TIME &&
+        remaining > 0 &&
+        !warningShown
+      ) {
+
+        warningShown = true;
+
+        toast(
+          "⚠️ Your 30-minute session will expire soon. Please save your work.",
+          "warning"
+        );
+      }
+
+
+      if (remaining <= 0) {
+
+        clearInterval(timerId);
+
+        forceLogout(
+          "Your 30-minute session has expired. Please log in again."
+        );
+
+      }
+
+    }
+
+
+    tick();
+
+    timerId = setInterval(
+      tick,
+      1000
+    );
+  }
+
+
+  /* ==========================================
+     FORCE LOGOUT
+  ========================================== */
+
+  async function forceLogout(message) {
+
+    clearInterval(timerId);
+
+    sessionStorage.removeItem(
+      SESSION_KEY
+    );
+
+    try {
+
+      await fetch(
+        "/api/auth/logout",
+        {
+          method: "POST",
+          credentials: "include"
+        }
+      );
+
+    } catch {
+      // Ignore logout network errors.
+    }
+
+    currentUser = null;
+    currentAgent = null;
+
+    showView("login");
+
+    if (message) {
+      toast(message, "warning");
+    }
+  }
+
+
+  /* ==========================================
+     LOGIN
+  ========================================== */
+
+  async function login(email, password) {
+
+    const data = await api(
+      "/api/auth/login",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          email,
+          password
+        })
+      }
+    );
+
+
+    currentUser =
+      data.user || null;
+
+    currentAgent =
+      data.agent || null;
+
+
+    // Start the timer only after
+    // the server confirms login.
+    startSessionTimer(
+      Date.now()
+    );
+
+
+    // Load dashboard.
+    await loadAll();
+
+    showView("app");
+
+    updateAccount();
+
+    toast(
+      "Logged in successfully."
+    );
+  }
+
+
+  /* ==========================================
+     BOOT
+  ========================================== */
+
+  async function boot() {
+
+    try {
+
+      const data =
+        await api(
+          "/api/auth/me"
+        );
+
+
+      currentUser =
+        data.user || null;
+
+      currentAgent =
+        data.agent || null;
+
+
+      const stored =
+        Number(
+          sessionStorage.getItem(
+            SESSION_KEY
+          ) || 0
+        );
+
+
+      if (
+        !stored ||
+        Date.now() - stored >= SESSION_DURATION
+      ) {
+
+        await forceLogout(
+          "Your session has expired. Please log in again."
+        );
+
+        return;
+      }
+
+
+      startSessionTimer(
+        stored
+      );
+
+
+      await loadAll();
+
+      showView("app");
+
+      updateAccount();
+
+
+    } catch (error) {
+
+      showView("login");
+
+    }
+
+  }
+
+
+  /* ==========================================
+     LOAD EVERYTHING
+  ========================================== */
+
+  async function loadAll() {
+
+    try {
+
+      const results =
+        await Promise.all([
+
+          api(
+            "/api/dashboard/summary"
+          ),
+
+          api(
+            "/api/packages/list"
+          ),
+
+          api(
+            "/api/voucher/list"
+          ),
+
+          api(
+            "/api/sales/list"
+          )
+
+        ]);
+
+
+      const summary =
+        results[0];
+
+
+      packages =
+        results[1].packages ||
+        results[1].data ||
+        [];
+
+
+      const vouchers =
+        results[2].vouchers ||
+        results[2].data ||
+        [];
+
+
+      sales =
+        results[3].sales ||
+        results[3].transactions ||
+        results[3].data ||
+        [];
+
+
+      $("totalSales").textContent =
+        money(summary.totalSales);
+
+
+      $("todaySales").textContent =
+        money(summary.todaySales);
+
+
+      $("todayTransactions").textContent =
+        String(
+          summary.todayTransactions || 0
+        );
+
+
+      $("stockCount").textContent =
+        String(
+          summary.availableVouchers ||
+          summary.stockCount ||
+          0
+        );
+
+
+      renderPackages();
+
+      renderVouchers(
+        vouchers
+      );
+
+      renderSales();
+
+      updateHeader();
+
+      populatePackageSelect();
+
+    } catch (error) {
+
+      if (
+        error.message === "Session expired"
+      ) {
+
+        await forceLogout(
+          "Your session has expired. Please log in again."
+        );
+
+        return;
+      }
+
+      throw error;
+    }
+  }
+
+
+  /* ==========================================
+     HEADER
+  ========================================== */
+
+  function updateHeader() {
+
+    const name =
+      currentAgent?.agent_name ||
+      "Agent";
+
+
+    $("agentNameHeader").textContent =
+      name;
+
+
+    $("welcomeName").textContent =
+      name;
+  }
+
+
+  /* ==========================================
+     ACCOUNT
+  ========================================== */
+
+  function updateAccount() {
+
+    $("accountAgentId").textContent =
+      currentAgent?.agent_id ||
+      "—";
+
+
+    $("accountAgentName").textContent =
+      currentAgent?.agent_name ||
+      "—";
+
+
+    $("accountPhone").textContent =
+      currentAgent?.phone ||
+      "—";
+
+
+    $("accountEmail").textContent =
+      currentUser?.email ||
+      "—";
+  }
+
+
+  /* ==========================================
+     RENDER PACKAGES
+  ========================================== */
+
+  function renderPackages() {
+
+    if (!packages.length) {
+
+      $("packagesList").innerHTML =
+        `
+        <div class="bg-white rounded-2xl p-6 text-slate-500 border border-slate-100">
+          No packages assigned.
+        </div>
+        `;
+
+      $("dashboardPackages").innerHTML =
+        `
+        <div class="bg-white rounded-2xl p-6 text-slate-500 border border-slate-100">
+          No packages assigned.
+        </div>
+        `;
+
+      return;
+    }
+
+
+    const html =
+      packages.map(p => `
+
+        <div
+          class="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm"
+        >
+
+          <div
+            class="text-xs text-blue-600 font-bold uppercase tracking-wide"
+          >
+            Assigned package
+          </div>
+
+          <h3
+            class="font-extrabold text-lg mt-1"
+          >
+            ${esc(p.package_name)}
+          </h3>
+
+          <div
+            class="text-2xl font-extrabold text-orange-600 mt-3"
+          >
+            ${money(
+              p.price_in_pesewas ??
+              p.price ??
+              0
+            )}
+          </div>
+
+        </div>
+
+      `).join("");
+
+
+    $("packagesList").innerHTML =
+      html;
+
+
+    $("dashboardPackages").innerHTML =
+      packages
+        .slice(0, 3)
+        .map(p => `
+
+          <div
+            class="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm"
+          >
+
+            <div class="text-xs text-blue-600 font-bold">
+              Package
+            </div>
+
+            <div class="font-extrabold mt-1">
+              ${esc(p.package_name)}
+            </div>
+
+            <div
+              class="text-xl font-extrabold text-orange-600 mt-3"
+            >
+              ${money(
+                p.price_in_pesewas ??
+                p.price ??
+                0
+              )}
+            </div>
+
+          </div>
+
+        `)
+        .join("");
+  }
+
+
+  /* ==========================================
+     RENDER VOUCHERS
+  ========================================== */
+
+  function renderVouchers(vouchers) {
+
+    if (!vouchers.length) {
+
+      $("vouchersList").innerHTML =
+        `
+        <div class="bg-white rounded-2xl p-6 text-slate-500 border border-slate-100">
+          No active vouchers available.
+        </div>
+        `;
+
+      return;
+    }
+
+
+    $("vouchersList").innerHTML =
+      vouchers.map(v => `
+
+        <div
+          class="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm"
+        >
+
+          <div
+            class="flex items-start justify-between gap-3"
+          >
+
+            <div>
+
+              <div class="font-extrabold">
+                ${esc(
+                  v.package_name ||
+                  "Voucher"
+                )}
+              </div>
+
+              <div class="text-sm text-slate-500 mt-1">
+                Code protected
+              </div>
+
+            </div>
+
+
+            <span
+              class="px-2.5 py-1 rounded-full bg-green-50 text-green-700 text-xs font-bold"
+            >
+              Available
+            </span>
+
+          </div>
+
+
+          <div
+            class="mt-5 bg-slate-50 rounded-xl p-3 text-center font-mono tracking-widest text-slate-500"
+          >
+            ••••••••
+          </div>
+
+        </div>
+
+      `).join("");
+  }
+
+
+  /* ==========================================
+     RENDER SALES
+  ========================================== */
+
+  function renderSales() {
+
+    const query =
+      (
+        $("salesSearch").value ||
+        ""
+      )
+      .trim()
+      .toLowerCase();
+
+
+    const filtered =
+      sales.filter(row => {
+
+        const phone =
+          String(
+            row.customer_phone ||
+            row.phone ||
+            row.recipient ||
+            ""
+          ).toLowerCase();
+
+
+        return phone.includes(
+          query
+        );
+      });
+
+
+    if (!filtered.length) {
+
+      $("salesBody").innerHTML =
+        `
+        <tr>
+          <td
+            colspan="5"
+            class="p-6 text-center text-slate-500"
+          >
+            No sales found.
+          </td>
+        </tr>
+        `;
+
+      return;
+    }
+
+
+    $("salesBody").innerHTML =
+      filtered.map(row => {
+
+        const date =
+          row.created_at ||
+          row.timestamp;
+
+
+        const packageName =
+          row.package_name ||
+          row.package ||
+          "—";
+
+
+        const phone =
+          row.customer_phone ||
+          row.phone ||
+          row.recipient ||
+          "—";
+
+
+        const amount =
+          row.price_in_pesewas ??
+          row.amount ??
+          row.price ??
+          0;
+
+
+        const status =
+          row.status ||
+          "completed";
+
+
+        return `
+
+          <tr class="border-t border-slate-100">
+
+            <td class="p-4 whitespace-nowrap">
+              ${
+                date
+                  ? esc(
+                      new Date(date)
+                        .toLocaleString()
+                    )
+                  : "—"
+              }
+            </td>
+
+            <td class="p-4">
+              ${esc(packageName)}
+            </td>
+
+            <td class="p-4">
+              ${esc(phone)}
+            </td>
+
+            <td class="p-4 font-bold">
+              ${money(amount)}
+            </td>
+
+            <td class="p-4">
+
+              <span
+                class="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold"
+              >
+                ${esc(status)}
+              </span>
+
+            </td>
+
+          </tr>
+
+        `;
+
+      }).join("");
+  }
+
+
+  /* ==========================================
+     PACKAGE SELECT
+  ========================================== */
+
+  function populatePackageSelect() {
+
+    $("packageSelect").innerHTML =
+      `
+      <option value="">
+        Select package
+      </option>
+      ` +
+
+      packages.map(p => `
+
+        <option value="${esc(p.id)}">
+
+          ${esc(p.package_name)}
+          —
+          ${money(
+            p.price_in_pesewas ??
+            p.price ??
+            0
+          )}
+
+        </option>
+
+      `).join("");
+  }
+
+
+  /* ==========================================
+     VOUCHER MODAL
+  ========================================== */
+
+  function openVoucherModal() {
+
+    populatePackageSelect();
+
+    $("voucherCodes").value = "";
+
+    $("voucherResult")
+      .classList
+      .add("hidden");
+
+    $("voucherModal")
+      .classList
+      .remove("hidden");
+  }
+
+
+  function closeVoucherModal() {
+
+    $("voucherModal")
+      .classList
+      .add("hidden");
+  }
+
+
+  /* ==========================================
+     ADD VOUCHERS
+  ========================================== */
+
+  async function addVouchers(
+    package_id,
+    text
+  ) {
+
+    const codes =
+      text
+        .split(/\r?\n/)
+        .map(x => x.trim())
+        .filter(Boolean);
+
+
+    if (!package_id) {
+
+      throw new Error(
+        "Please select a package."
+      );
+    }
+
+
+    if (!codes.length) {
+
+      throw new Error(
+        "Please enter at least one voucher code."
+      );
+    }
+
+
+    const data =
+      await api(
+        "/api/voucher/add",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            package_id,
+            vouchers: codes
+          })
+        }
+      );
+
+
+    const inserted =
+      Number(
+        data.inserted || 0
+      );
+
+
+    const skipped =
+      Number(
+        data.skipped || 0
+      );
+
+
+    const duplicateLines =
+      Number(
+        data.duplicates_in_submission || 0
+      );
+
+
+    $("voucherResult").className =
+      "rounded-xl p-4 bg-blue-50 text-blue-800";
+
+
+    $("voucherResult").textContent =
+      `${inserted} added. ` +
+      `${skipped} already existed. ` +
+      `${duplicateLines} duplicate line(s) in this submission.`;
+
+
+    $("voucherResult")
+      .classList
+      .remove("hidden");
+
+
+    toast(
+      `${inserted} voucher(s) added successfully.`
+    );
+
+
+    await loadAll();
+  }
+
+
+  /* ==========================================
+     LOGIN FORM
+  ========================================== */
+
+  $("loginForm")
+    .addEventListener(
+      "submit",
+      async e => {
+
+        e.preventDefault();
+
+        $("loginError")
+          .classList
+          .add("hidden");
+
+
+        setLoginLoading(true);
+
+
+        try {
+
+          await login(
+            $("email").value.trim(),
+            $("password").value
+          );
+
+        } catch (error) {
+
+          $("loginError").textContent =
+            error.message ||
+            "Unable to complete login.";
+
+
+          $("loginError")
+            .classList
+            .remove("hidden");
+
+        } finally {
+
+          setLoginLoading(false);
+
+        }
+
+      }
+    );
+
+
+  /* ==========================================
+     NAVIGATION
+  ========================================== */
+
+  $("menuBtn")
+    .addEventListener(
+      "click",
+      openDrawer
+    );
+
+
+  $("closeDrawer")
+    .addEventListener(
+      "click",
+      closeDrawer
+    );
+
+
+  $("drawerOverlay")
+    .addEventListener(
+      "click",
+      closeDrawer
+    );
+
+
+  document
+    .querySelectorAll(".navBtn")
+    .forEach(btn => {
+
+      btn.addEventListener(
+        "click",
+        () => {
+
+          switchTab(
+            btn.dataset.tab
+          );
+
+        }
+      );
+
+    });
+
+
+  /* ==========================================
+     VOUCHER MODAL BUTTONS
+  ========================================== */
+
+  $("dashboardAddBtn")
+    .addEventListener(
+      "click",
+      openVoucherModal
+    );
+
+
+  $("voucherAddBtn")
+    .addEventListener(
+      "click",
+      openVoucherModal
+    );
+
+
+  $("closeVoucherModal")
+    .addEventListener(
+      "click",
+      closeVoucherModal
+    );
+
+
+  /* ==========================================
+     VOUCHER FORM
+  ========================================== */
+
+  $("voucherForm")
+    .addEventListener(
+      "submit",
+      async e => {
+
+        e.preventDefault();
+
+        setVoucherLoading(true);
+
+
+        try {
+
+          await addVouchers(
+            $("packageSelect").value,
+            $("voucherCodes").value
+          );
+
+        } catch (error) {
+
+          $("voucherResult").className =
+            "rounded-xl p-4 bg-red-50 text-red-700";
+
+
+          $("voucherResult").textContent =
+            error.message;
+
+
+          $("voucherResult")
+            .classList
+            .remove("hidden");
+
+        } finally {
+
+          setVoucherLoading(false);
+
+        }
+
+      }
+    );
+
+
+  /* ==========================================
+     SALES SEARCH
+  ========================================== */
+
+  $("salesSearch")
+    .addEventListener(
+      "input",
+      renderSales
+    );
+
+
+  /* ==========================================
+     REFRESH
+  ========================================== */
+
+  $("refreshBtn")
+    .addEventListener(
+      "click",
+      async () => {
+
+        try {
+
+          await loadAll();
+
+          toast(
+            "Dashboard data refreshed."
+          );
+
+        } catch (error) {
+
+          toast(
+            error.message,
+            "error"
+          );
+
+        }
+
+      }
+    );
+
+
+  /* ==========================================
+     LOGOUT
+  ========================================== */
+
+  $("logoutBtn")
+    .addEventListener(
+      "click",
+      () =>
+        forceLogout(
+          "You have been logged out."
+        )
+    );
+
+
+  $("mobileLogout")
+    .addEventListener(
+      "click",
+      () =>
+        forceLogout(
+          "You have been logged out."
+        )
+    );
+
+
+  /* ==========================================
+     PWA INSTALLATION
+  ========================================== */
+
+  window.addEventListener(
+    "beforeinstallprompt",
+    event => {
+
+      event.preventDefault();
+
+      deferredInstallPrompt =
+        event;
+
+
+      $("installBtn")
+        .classList
+        .remove("hidden");
+
+
+      $("installLoginBtn")
+        .classList
+        .remove("hidden");
+
+    }
+  );
+
+
+  async function installApp() {
+
+    if (!deferredInstallPrompt) {
+
+      toast(
+        "Use your browser menu and choose Install app or Add to Home screen.",
+        "warning"
+      );
+
+      return;
+    }
+
+
+    deferredInstallPrompt.prompt();
+
+
+    await deferredInstallPrompt.userChoice;
+
+
+    deferredInstallPrompt =
+      null;
+
+
+    $("installBtn")
+      .classList
+      .add("hidden");
+
+
+    $("installLoginBtn")
+      .classList
+      .add("hidden");
+  }
+
+
+  $("installBtn")
+    .addEventListener(
+      "click",
+      installApp
+    );
+
+
+  $("installLoginBtn")
+    .addEventListener(
+      "click",
+      installApp
+    );
+
+
+  window.addEventListener(
+    "appinstalled",
+    () => {
+
+      deferredInstallPrompt =
+        null;
+
+
+      $("installBtn")
+        .classList
+        .add("hidden");
+
+
+      $("installLoginBtn")
+        .classList
+        .add("hidden");
+
+
+      toast(
+        "EazyFi has been installed as an app."
+      );
+
+    }
+  );
+
+
+  /* ==========================================
+     VISIBILITY / SESSION CHECK
+  ========================================== */
+
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+
+      if (
+        !document.hidden &&
+        currentAgent
+      ) {
+
+        const started =
+          Number(
+            sessionStorage.getItem(
+              SESSION_KEY
+            ) || 0
+          );
+
+
+        if (
+          !started ||
+          Date.now() - started >= SESSION_DURATION
+        ) {
+
+          forceLogout(
+            "Your 30-minute session has expired. Please log in again."
+          );
+
+        }
+
+      }
+
+    }
+  );
+
+
+  /* ==========================================
+     SERVICE WORKER
+  ========================================== */
+
+  if (
+    "serviceWorker" in navigator
+  ) {
+
+    window.addEventListener(
+      "load",
+      () => {
+
+        navigator.serviceWorker
+          .register("/sw.js")
+          .catch(error => {
+            console.error(
+              "Service worker registration failed:",
+              error
+            );
+          });
+
+      }
+    );
+
+  }
+
+
+  /* ==========================================
+     START APP
+  ========================================== */
+
+  boot();
+
+</script>
+
+</body>
+</html>
